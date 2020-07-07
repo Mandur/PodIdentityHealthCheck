@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: podidentity-test-pod
+  labels:
+    aadpodidbinding: podidentity
+spec:
+  containers:
+  - name: myapp-container
+    image: ubuntu
+  initContainers:
+  - name: check-pod-identity
+    image: mandrx/podidentityinitcheck:0.0.1
+    

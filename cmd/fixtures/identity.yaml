@@ -1,0 +1,16 @@
+apiVersion: "aadpodidentity.k8s.io/v1"
+kind: AzureIdentity
+metadata:
+  name: podidentity
+spec:
+  type: 0
+  resourceID: /subscriptions/81cd3441-5947-4a5d-8341-5d741241c79c/resourcegroups/aks/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myidentity
+  clientID: 85fabdad-6369-465d-9ff7-c3e5006d94db
+---
+apiVersion: "aadpodidentity.k8s.io/v1"
+kind: AzureIdentityBinding
+metadata:
+  name: podidentity-binding
+spec:
+  azureIdentity: podidentity
+  selector: podidentity
