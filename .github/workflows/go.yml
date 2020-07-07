@@ -39,13 +39,13 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: Login to AKS
-      uses: azure/CLI@v1
+    - uses: azure/aks-set-context@v1
       with:
-        azcliversion: 2.0.72
-        inlineScript: |
-          az aks get-credentials -g ${{ secrets.AKS_RG }} -n ${{ secrets.AKS_NAME }}
- 
+        creds: '${{ secrets.AZURE_CREDENTIALS }}' # Azure credentials
+        resource-group: '${{ secrets.AKS_RG }}'
+        cluster-name: '${{ secrets.AKS_NAME }}'
+      id: login
+      name: Login to AKS
 
     - name: Test
       run: go test -v .
