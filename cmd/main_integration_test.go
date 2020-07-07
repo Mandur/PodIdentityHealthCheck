@@ -20,7 +20,7 @@ func setupAzureIdentity(t *testing.T, options *k8s.KubectlOptions) {
 
 func removeAzureIdentity(t *testing.T, options *k8s.KubectlOptions) {
 	identityPath := "./fixtures/identity.yaml"
-	k8s.KubectlDelete(t, options, identityPath)
+	k8s.KubectlDeleteE(t, options, identityPath)
 }
 
 func TestPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
@@ -30,11 +30,12 @@ func TestPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 	setupPodIdentity(t, options)
 	setupAzureIdentity(t, options)
 	podPath := "./fixtures/podWithPIEnabled.yaml"
+
 	defer k8s.KubectlDelete(t, options, podPath)
 	k8s.KubectlApply(t, options, podPath)
 
 	// Verify the pod starts
-	k8s.WaitUntilPodAvailable(t, options, "podidentity-test-pod", 5, 3*time.Second)
+	k8s.WaitUntilPodAvailable(t, options, "podidentity-test-pod", 6, 10*time.Second)
 }
 
 func TestPodShouldNotStartIfNMIIsMissing(t *testing.T) {

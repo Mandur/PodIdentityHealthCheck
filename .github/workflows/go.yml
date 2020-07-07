@@ -48,5 +48,5 @@ jobs:
       name: Login to AKS
 
     - name: Test
-      run: go test -v .
+      run: go test -timeout 3m -count=1 -v .
       working-directory: cmd/
