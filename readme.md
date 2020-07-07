@@ -7,7 +7,7 @@ In cases like cluster scale out, the pods can be available before the NMI. This 
 ## Proposed solution
 
 The proposed solution is to have a lightweight init container that check that the NMI is up and running and correct identity is seeded to the pod. In order to achieve that, the init container is trying to access the http://169.254.169.254/metadata/identity/oauth2/token url of the nmi to request a token to access the standard Azure management plane. The init container will succeed if the return code is 200, otherwise the init container will fail and the application pod will not be started.
-It is worth noting that if the AzureIdentity and AzureIdentityBinding are not set properly, the init container will also fail.
+It is worth noting that if the AzureIdentity and AzureIdentityBinding are not set properly, the init container will still start.
 
 ### Quickstart
 

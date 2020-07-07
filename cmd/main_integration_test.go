@@ -35,7 +35,8 @@ func TestPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 	k8s.KubectlApply(t, options, podPath)
 
 	// Verify the pod starts
-	k8s.WaitUntilPodAvailable(t, options, "podidentity-test-pod", 6, 10*time.Second)
+	err := k8s.WaitUntilPodAvailableE(t, options, "podidentity-test-pod", 6, 10*time.Second)
+	assert.Nil(t, err)
 }
 
 func TestPodShouldNotStartIfNMIIsMissing(t *testing.T) {
@@ -66,7 +67,7 @@ func TestPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
 	k8s.KubectlApply(t, options, podPath)
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Verify the pod starts
-	err := k8s.WaitUntilPodAvailableE(t, options, "podidentity-test-pod", 5, 3*time.Second)
-	assert.Error(t, err)
+	err := k8s.WaitUntilPodAvailableE(t, options, "podidentity-test-pod", 6, 10*time.Second)
+	assert.Nil(t, err)
 
 }
