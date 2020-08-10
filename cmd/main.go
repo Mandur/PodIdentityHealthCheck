@@ -47,26 +47,19 @@ type httpClient interface {
 }
 
 func run(client httpClient) error {
-	const defaultPodIdentityURL = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01"
-	const defaultURLToAccess = "https://management.azure.com/"
+	const defaultPodIdentityURL = "http://localhost/api/v1/healthz"
 
 	// Create HTTP request for a managed services for Azure resources token to access Azure Resource Manager
-	var msiEndpoint *url.URL
-	msiEndpoint, err := url.Parse(getEnv("POD_IDENTITY_URL", defaultPodIdentityURL))
+	var podIdentityLivenessURL *url.URL
+	podIdentityLivenessURL, err := url.Parse(getEnv("POD_IDENTITY_URL", defaultPodIdentityURL))
 	if err != nil {
 		return fmt.Errorf("Error creating URL: %s ", err)
 	}
 
-	msiParameters := url.Values{}
-	msiParameters.Add("resource", getEnv("POD_IDENTITY_ACCESS_URL", defaultURLToAccess))
-	msiEndpoint.RawQuery = msiParameters.Encode()
-	req, err := retryablehttp.NewRequest("GET", msiEndpoint.String(), nil)
+	req, err := retryablehttp.NewRequest("GET", podIdentityLivenessURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("Error creating HTTP request: %s ", err)
 	}
-
-	req.Header.Add("Metadata", "true")
-	// Call managed services for Azure resources token endpoint
 
 	resp, err := client.Do(req)
 	if err != nil {
