@@ -7,8 +7,12 @@ metadata:
 spec:
   containers:
   - name: myapp-container
-    image: ubuntu
-  initContainers:
+    image: nginx
   - name: check-pod-identity
-    image: mandrx/podidentityinitcheck:0.0.1
-    
+    image: mandrx/podidentityinitcheck:0.1.2
+    env:
+    - name: HOST_IP
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: status.hostIP

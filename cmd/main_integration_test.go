@@ -23,7 +23,16 @@ func removeAzureIdentity(t *testing.T, options *k8s.KubectlOptions) {
 	k8s.KubectlDeleteE(t, options, identityPath)
 }
 
-func TestPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
+func checkIfPodRestarted(t *testing.T, options *k8s.KubectlOptions, podName string) bool {
+	pod := k8s.GetPod(t, options, podName)
+	if pod.Status.ContainerStatuses[0].RestartCount > 0 {
+		return true
+	}
+
+	return false
+}
+
+func TestCustomPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 
 	// Setup the kubectl config and context.
 	options := k8s.NewKubectlOptions("", "", "default")
@@ -39,35 +48,113 @@ func TestPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestPodShouldNotStartIfNMIIsMissing(t *testing.T) {
+func TestCustomPodShouldStopIfNMIIsMissing(t *testing.T) {
 	// Setup the kubectl config and context.
 	options := k8s.NewKubectlOptions("", "", "default")
 
 	setupPodIdentity(t, options)
 	setupAzureIdentity(t, options)
-
+	podName := "podidentity-test-pod"
 	podPath := "./fixtures/podWithPIEnabled.yaml"
 	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	time.Sleep(15 * time.Second)
 	k8s.KubectlApply(t, options, podPath)
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Verify the pod starts
-	err := k8s.WaitUntilPodAvailableE(t, options, "podidentity-test-pod", 5, 3*time.Second)
-	assert.Error(t, err)
+	k8s.WaitUntilPodAvailable(t, options, podName, 5, 3*time.Second)
+	checkCount := 0
+	for !checkIfPodRestarted(t, options, podName) {
+		if checkCount > 5 {
+			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
+		}
+		checkCount++
+		time.Sleep(5 * time.Second)
+	}
 }
 
-func TestPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
+func TestCustomPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
 	// Setup the kubectl config and context.
 	options := k8s.NewKubectlOptions("", "", "default")
 	setupPodIdentity(t, options)
 	removeAzureIdentity(t, options)
 	podPath := "./fixtures/podWithPIEnabled.yaml"
 	time.Sleep(15 * time.Second)
+	podName := "podidentity-test-pod"
 
 	k8s.KubectlApply(t, options, podPath)
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Verify the pod starts
-	err := k8s.WaitUntilPodAvailableE(t, options, "podidentity-test-pod", 6, 10*time.Second)
-	assert.Nil(t, err)
+	k8s.WaitUntilPodAvailableE(t, options, podName, 6, 10*time.Second)
+	checkCount := 0
+	for !checkIfPodRestarted(t, options, podName) {
+		if checkCount > 5 {
+			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
+		}
+		checkCount++
+		time.Sleep(5 * time.Second)
+	}
+}
 
+func TestYamlPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
+
+	// Setup the kubectl config and context.
+	options := k8s.NewKubectlOptions("", "", "default")
+	setupPodIdentity(t, options)
+	setupAzureIdentity(t, options)
+	podPath := "./fixtures/podwithYaml.yaml"
+
+	defer k8s.KubectlDelete(t, options, podPath)
+	k8s.KubectlApply(t, options, podPath)
+
+	// Verify the pod starts
+	err := k8s.WaitUntilPodAvailableE(t, options, "podidentit-yaml-test-pod", 6, 10*time.Second)
+	assert.Nil(t, err)
+}
+
+func TestYamlPodShouldStopIfNMIIsMissing(t *testing.T) {
+	// Setup the kubectl config and context.
+	options := k8s.NewKubectlOptions("", "", "default")
+
+	setupPodIdentity(t, options)
+	setupAzureIdentity(t, options)
+
+	podPath := "./fixtures/podwithYaml.yaml"
+	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
+	time.Sleep(15 * time.Second)
+	podName := "podidentit-yaml-test-pod"
+	k8s.KubectlApply(t, options, podPath)
+	defer k8s.KubectlDelete(t, options, podPath)
+	// Verify the pod starts
+	k8s.WaitUntilPodAvailable(t, options, podName, 20, 1*time.Second)
+	checkCount := 0
+	for !checkIfPodRestarted(t, options, podName) {
+		if checkCount > 5 {
+			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
+		}
+		checkCount++
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func TestYamlPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
+	// Setup the kubectl config and context.
+	options := k8s.NewKubectlOptions("", "", "default")
+	setupPodIdentity(t, options)
+	removeAzureIdentity(t, options)
+	podPath := "./fixtures/podwithYaml.yaml"
+	time.Sleep(15 * time.Second)
+	podName := "podidentit-yaml-test-pod"
+
+	k8s.KubectlApply(t, options, podPath)
+	defer k8s.KubectlDelete(t, options, podPath)
+	// Verify the pod starts
+	k8s.WaitUntilPodAvailable(t, options, podName, 20, 1*time.Second)
+	checkCount := 0
+	for !checkIfPodRestarted(t, options, podName) {
+		if checkCount > 5 {
+			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
+		}
+		checkCount++
+		time.Sleep(10 * time.Second)
+	}
 }

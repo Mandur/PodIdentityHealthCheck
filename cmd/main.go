@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -46,35 +47,57 @@ type httpClient interface {
 	Do(req *retryablehttp.Request) (*http.Response, error)
 }
 
-func run(client httpClient) error {
-	const defaultPodIdentityURL = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01"
-	const defaultURLToAccess = "https://management.azure.com/"
+// HostIPNotSetError is an error to indicate the host IP parameter was not set.
+type HostIPNotSetError struct {
+}
 
-	// Create HTTP request for a managed services for Azure resources token to access Azure Resource Manager
-	var msiEndpoint *url.URL
-	msiEndpoint, err := url.Parse(getEnv("POD_IDENTITY_URL", defaultPodIdentityURL))
+func (f HostIPNotSetError) Error() string {
+	return fmt.Sprintf("Environment variable 'HOST_IP' should be set")
+}
+
+// NMIResponseWasNotActiveError is an error to indicate the host IP parameter was not set.
+type NMIResponseWasNotActiveError struct {
+	incomingMessage string
+}
+
+func (f NMIResponseWasNotActiveError) Error() string {
+	return fmt.Sprintf("request to the NMI liveness probe failed, the message content was: %s, expected 'Active'", f.incomingMessage)
+}
+
+func run(client httpClient) error {
+	// get host ip variable
+	const livenessURLTemplate = "http://%s:8085/healthz"
+	hostIP, hostIPEnvVarSet := os.LookupEnv("HOST_IP")
+	if !hostIPEnvVarSet {
+		return &HostIPNotSetError{}
+	}
+
+	nmiEndpoint, err := url.Parse(fmt.Sprintf(livenessURLTemplate, hostIP))
 	if err != nil {
 		return fmt.Errorf("Error creating URL: %s ", err)
 	}
 
-	msiParameters := url.Values{}
-	msiParameters.Add("resource", getEnv("POD_IDENTITY_ACCESS_URL", defaultURLToAccess))
-	msiEndpoint.RawQuery = msiParameters.Encode()
-	req, err := retryablehttp.NewRequest("GET", msiEndpoint.String(), nil)
+	req, err := retryablehttp.NewRequest("GET", nmiEndpoint.String(), nil)
 	if err != nil {
 		return fmt.Errorf("Error creating HTTP request: %s ", err)
 	}
-
-	req.Header.Add("Metadata", "true")
-	// Call managed services for Azure resources token endpoint
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("Error calling token endpoint: %s", err)
 	}
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("request to the NMI failed, the pod will be restarted: %d", resp.StatusCode)
+		return fmt.Errorf("request to the NMI liveness probe failed with http error code: %d", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	str := string(body)
+
+	if str != "Active" {
+		return &NMIResponseWasNotActiveError{
+			incomingMessage: str,
+		}
 	}
 
 	fmt.Println("request to the NMI was successfull")
