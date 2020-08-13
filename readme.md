@@ -2,7 +2,7 @@
 
 ## The problem
 The [pod identity](https://github.com/Azure/aad-pod-identity) implementation for Azure Kubernetes Service (AKS) relies on the Node Managed identity (NMI) in order to answer from authentication requests coming from the pods.
-In cases like cluster scale out, application pods can become available before the NMI, leading to applcation authentication requests failing generating applications error messages. Ultimately this leads to confusing container crashes and error message reported in the operation framework. In cases like cluster scale down, the same can happen if the nmi pods get killed before the application pod.
+In cases like cluster scale out, application pods can become available before the NMI, leading to application authentication requests failing potentially causing applications to malfunction/crash. Ultimately this leads to confusing container crashes and error message reported in the operation framework. In cases like cluster scale down, the same can happen if the nmi pods get killed before the application pod.
 
 ## Proposed solution
 
@@ -51,7 +51,7 @@ spec:
 The Readiness probe is very aggressive and will flag a pod as not ready to accept traffic as soon as one request to the NMI liveness probe will fail. On the other hand, the liveness probe is configured more permissively to kill the pod after 5 failed requests to the NMI liveness probes to avoid unecessary pod reboots. 
 Obviously these settings are suggestion and one should adapt them with the behaviour of the applications.  
 
-### External Image
+### Sidecar approach
 
 In order to use the proposed solution, you just need to add the container "mandrx/podidentityinitcheck:0.1.2" as a sidecar container in your Kubernetes deployment. The sidecar will monitor the NMI liveness probes and kill the pod if it becomes unavalaible.
 
