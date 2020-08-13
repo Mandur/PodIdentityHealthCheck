@@ -32,6 +32,11 @@ func checkIfPodRestarted(t *testing.T, options *k8s.KubectlOptions, podName stri
 	return false
 }
 
+func checkIfPodReady(t *testing.T, options *k8s.KubectlOptions, podName string) bool {
+	pod := k8s.GetPod(t, options, podName)
+	return pod.Status.ContainerStatuses[0].Ready
+}
+
 func TestCustomPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 
 	// Setup the kubectl config and context.
@@ -56,19 +61,18 @@ func TestCustomPodShouldStopIfNMIIsMissing(t *testing.T) {
 	setupAzureIdentity(t, options)
 	podName := "podidentity-test-pod"
 	podPath := "./fixtures/podWithPIEnabled.yaml"
-	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
-	time.Sleep(15 * time.Second)
 	k8s.KubectlApply(t, options, podPath)
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Verify the pod starts
-	k8s.WaitUntilPodAvailable(t, options, podName, 5, 3*time.Second)
+	k8s.WaitUntilPodAvailable(t, options, podName, 10, 3*time.Second)
+	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	checkCount := 0
 	for !checkIfPodRestarted(t, options, podName) {
 		if checkCount > 5 {
 			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
 		}
 		checkCount++
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -78,7 +82,6 @@ func TestCustomPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
 	setupPodIdentity(t, options)
 	removeAzureIdentity(t, options)
 	podPath := "./fixtures/podWithPIEnabled.yaml"
-	time.Sleep(15 * time.Second)
 	podName := "podidentity-test-pod"
 
 	k8s.KubectlApply(t, options, podPath)
@@ -109,6 +112,8 @@ func TestYamlPodShouldStartIfPodIdentityIsInstalled(t *testing.T) {
 	// Verify the pod starts
 	err := k8s.WaitUntilPodAvailableE(t, options, "podidentit-yaml-test-pod", 6, 10*time.Second)
 	assert.Nil(t, err)
+	assert.True(t, checkIfPodReady(t, options, "podidentit-yaml-test-pod"))
+
 }
 
 func TestYamlPodShouldStopIfNMIIsMissing(t *testing.T) {
@@ -119,30 +124,30 @@ func TestYamlPodShouldStopIfNMIIsMissing(t *testing.T) {
 	setupAzureIdentity(t, options)
 
 	podPath := "./fixtures/podwithYaml.yaml"
-	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
-	time.Sleep(15 * time.Second)
 	podName := "podidentit-yaml-test-pod"
 	k8s.KubectlApply(t, options, podPath)
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Verify the pod starts
-	k8s.WaitUntilPodAvailable(t, options, podName, 20, 1*time.Second)
+	k8s.WaitUntilPodAvailable(t, options, podName, 60, 1*time.Second)
+	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
+	time.Sleep(30 * time.Second)
 	checkCount := 0
 	for !checkIfPodRestarted(t, options, podName) {
+		assert.False(t, checkIfPodReady(t, options, podName))
 		if checkCount > 5 {
 			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
 		}
 		checkCount++
-		time.Sleep(10 * time.Second)
+		time.Sleep(20 * time.Second)
 	}
 }
 
-func TestYamlPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
+func TestYamlPodShouldNotBeReadyIfNMIIsMissing(t *testing.T) {
 	// Setup the kubectl config and context.
 	options := k8s.NewKubectlOptions("", "", "default")
 	setupPodIdentity(t, options)
-	removeAzureIdentity(t, options)
+	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	podPath := "./fixtures/podwithYaml.yaml"
-	time.Sleep(15 * time.Second)
 	podName := "podidentit-yaml-test-pod"
 
 	k8s.KubectlApply(t, options, podPath)
@@ -151,7 +156,8 @@ func TestYamlPodShouldNotStartIfAzureIdentityIsMissing(t *testing.T) {
 	k8s.WaitUntilPodAvailable(t, options, podName, 20, 1*time.Second)
 	checkCount := 0
 	for !checkIfPodRestarted(t, options, podName) {
-		if checkCount > 5 {
+		assert.False(t, checkIfPodReady(t, options, podName))
+		if checkCount > 10 {
 			assert.Fail(t, "The pod did not restart after the nmi indicated failure")
 		}
 		checkCount++

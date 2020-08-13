@@ -6,10 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
-	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
 )
 
 func getEnv(key, defaultValue string) string {
@@ -19,32 +15,8 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-func setupHTTPClient(client *retryablehttp.Client) error {
-
-	const retryWaitMaxDefault = "3s"
-	const retryWaitMinDefault = "10s"
-	const retryCountDefault = "5"
-
-	retryMax, err := strconv.Atoi(getEnv("HTTP_RETRY_COUNT", retryCountDefault))
-	if err != nil {
-		return err
-	}
-	retryWaitMinSeconds, err := time.ParseDuration(getEnv("HTTP_RETRY_MIN_SECONDS", retryWaitMinDefault))
-	if err != nil {
-		return err
-	}
-	retryWaitMaxSeconds, err := time.ParseDuration(getEnv("HTTP_RETRY_MAX_SECONDS", retryWaitMaxDefault))
-	if err != nil {
-		return err
-	}
-	client.RetryMax = retryMax
-	client.RetryWaitMin = retryWaitMinSeconds
-	client.RetryWaitMax = retryWaitMaxSeconds
-	return nil
-}
-
 type httpClient interface {
-	Do(req *retryablehttp.Request) (*http.Response, error)
+	Do(req *http.Request) (*http.Response, error)
 }
 
 // HostIPNotSetError is an error to indicate the host IP parameter was not set.
@@ -77,7 +49,7 @@ func run(client httpClient) error {
 		return fmt.Errorf("Error creating URL: %s ", err)
 	}
 
-	req, err := retryablehttp.NewRequest("GET", nmiEndpoint.String(), nil)
+	req, err := http.NewRequest("GET", nmiEndpoint.String(), nil)
 	if err != nil {
 		return fmt.Errorf("Error creating HTTP request: %s ", err)
 	}
@@ -105,13 +77,9 @@ func run(client httpClient) error {
 }
 
 func main() {
-	client := retryablehttp.NewClient()
-	err := setupHTTPClient(client)
-	if err != nil {
-		panic(err)
-	}
+	client := &http.Client{}
 
-	err = run(client)
+	err := run(client)
 	if err != nil {
 		panic(err)
 	}

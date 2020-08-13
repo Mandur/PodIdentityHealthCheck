@@ -17,11 +17,20 @@ spec:
         fieldRef:
           apiVersion: v1
           fieldPath: status.hostIP
+    readinessProbe:
+      exec:
+        command:
+        - sh
+        - -c
+        - if [ `wget -qO- $HOST_IP:8085/healthz` == Active ] ; then exit 0; else exit 1; fi
+      initialDelaySeconds: 0
+      periodSeconds: 5
     livenessProbe:
       exec:
         command:
         - sh
         - -c
         - if [ `wget -qO- $HOST_IP:8085/healthz` == Active ] ; then exit 0; else exit 1; fi
-      initialDelaySeconds: 5
+      initialDelaySeconds: 30
       periodSeconds: 5
+      failureThreshold: 5

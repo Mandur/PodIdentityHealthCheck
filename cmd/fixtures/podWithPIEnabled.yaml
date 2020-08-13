@@ -9,7 +9,7 @@ spec:
   - name: myapp-container
     image: nginx
   - name: check-pod-identity
-    image: mandrx/podidentityinitcheck:0.1.2
+    image: mandrx/podidentityinitcheck:0.1.3
     env:
     - name: HOST_IP
       valueFrom:
