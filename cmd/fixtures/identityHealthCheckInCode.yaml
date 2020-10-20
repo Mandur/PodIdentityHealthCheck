@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: podidentity-test-pod
+  labels:
+    aadpodidbinding: podidentity
+spec:
+  containers:
+  - name: myapp-container
+    image: mandrx/customidentityhealthcheck:0.0.7
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 80
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      failureThreshold: 2
+      timeoutSeconds: 5

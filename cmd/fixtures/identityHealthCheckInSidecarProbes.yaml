@@ -1,28 +1,26 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: podidentit-yaml-test-pod
+  name: podidentity-test-pod
   labels:
     aadpodidbinding: podidentity
 spec:
-  terminationGracePeriodSeconds: 5
+  shareProcessNamespace: true
   containers:
   - name: main
     image: busybox
     command: [ "sh", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
-    env:
-    - name: HOST_IP
-      valueFrom:
-        fieldRef:
-          apiVersion: v1
-          fieldPath: status.hostIP
+  - name: podidentitycheck
+    image: mcr.microsoft.com/azure-cli
+    command: [ "sh", "-c", "--" ]
+    args: [ "while true; do sleep 30; done;" ]
     readinessProbe:
       exec:
         command:
         - sh
         - -c
-        - if [ `wget -qO- $HOST_IP:8085/healthz` == Active ] ; then exit 0; else exit 1; fi
+        - if az login --identity --debug ; then echo "Identity is behaving correctly"; else exit 1; fi
       initialDelaySeconds: 0
       periodSeconds: 5
     livenessProbe:
@@ -30,7 +28,7 @@ spec:
         command:
         - sh
         - -c
-        - if [ `wget -qO- $HOST_IP:8085/healthz` == Active ] ; then exit 0; else exit 1; fi
+        - if az login --identity --debug ; then echo "Identity is behaving correctly"; else exit 1; fi
       initialDelaySeconds: 30
       periodSeconds: 5
       failureThreshold: 5
