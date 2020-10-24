@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: podidentity-test-pod
+  labels:
+    aadpodidbinding: podidentity
+spec:
+  terminationGracePeriodSeconds: 5
+  initContainers:
+  - name: init-myservice
+    image: mcr.microsoft.com/azure-cli
+    command:
+    - 'sh'
+    - '-c'
+    - 'az login --identity --debug'
+  containers:
+  - name: main
+    image: busybox
+    command: [ "sh", "-c", "--" ]
+    args: [ "while true; do sleep 30; done;" ]

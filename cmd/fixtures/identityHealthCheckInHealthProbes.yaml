@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - name: main
-    image: busybox
+    image: curlimages/curl
     command: [ "sh", "-c", "--" ]
     args: [ "while true; do sleep 30; done;" ]
     readinessProbe:
@@ -15,7 +15,7 @@ spec:
         command:
         - sh
         - -c
-        - curl 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' -H Metadata:true -s
+        - curl --fail 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/' -H Metadata:true -s
       initialDelaySeconds: 0
       periodSeconds: 5
       failureThreshold: 1
@@ -24,7 +24,7 @@ spec:
         command:
         - sh
         - -c
-        - curl 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' -H Metadata:true -s
+        - curl --fail 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' -H Metadata:true -s
       initialDelaySeconds: 30
       periodSeconds: 5
       failureThreshold: 3

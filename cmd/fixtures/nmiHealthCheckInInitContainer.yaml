@@ -8,7 +8,7 @@ spec:
   terminationGracePeriodSeconds: 5
   initContainers:
   - name: init-myservice
-    image: busybox:1.28
+    image: curlimages/curl
     env:
     - name: HOST_IP
       valueFrom:
@@ -18,7 +18,7 @@ spec:
     command:
     - 'sh'
     - '-c'
-    - "until wget -qO- $HOST_IP:8085/healthz; do echo waiting for NMI probe startup; sleep 2; done"
+    - while [ "$(curl -s $HOST_IP:8085/healthz)" != "Active" ]; do echo waiting for NMI probe startup; sleep 5; done
   containers:
   - name: main
     image: busybox

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: problem
+spec:
+  containers:
+  - name: main
+    image: mandrx/testmanagedidentity:0.0.7
+    env:
+    - name: KEY_VAULT_NAME
+      value: kvtestmikou

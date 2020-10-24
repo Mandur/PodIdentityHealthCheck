@@ -8,7 +8,7 @@ spec:
   terminationGracePeriodSeconds: 5
   initContainers:
   - name: init-myservice
-    image: busybox
+    image: curlimages/curl
     env:
     - name: HOST_IP
       valueFrom:
@@ -18,7 +18,7 @@ spec:
     command:
     - 'sh'
     - '-c'
-    - "until curl 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagemenazure.com%2F' -H Metadata:true -s; do echo waiting for NMI probe startup; sleep 2; done"
+    - while ! curl --fail 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/' -H Metadata:true -s; do echo waiting for token interception; sleep 5; done
   containers:
   - name: main
     image: busybox

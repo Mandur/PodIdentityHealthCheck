@@ -4,42 +4,42 @@
 
 ## Introduction
 
-The [pod identity](https://github.com/Azure/aad-pod-identity) implementation for Azure Kubernetes Service (AKS) enables an easy way to authencate against Azure resource without the need to managed connection and secrets. Additionally it enables to associate identity at pod level. It relies on two components: 
-* The Node Managed Identity [*NMI*] deployed on every node on the cluster (as a daemonset) component on the Kubernetes cluster that intercepts managed identity auth requests from pods normally directed to the VM IMDS endpoint. The NMI act like a proxy, verifying the request and forwarding allowed requests to the [Instance Metadata Service](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service) (IMDS) on behalf on the pod.
+The [pod identity](https://github.com/Azure/aad-pod-identity) implementation for Azure Kubernetes Service (AKS) enables an easy way to authenticate against Azure resource without the need to manage connection string and secrets in your deployments. Additionally it enables to associate identities at pod level granularity. It relies on two components to work properly: 
+* The Node Managed Identity [*NMI*] deployed on every node on the cluster (as a daemonset) component on the Kubernetes cluster that intercepts managed identity access token requests from pods normally directed to the VM IMDS endpoint. The NMI act like a proxy, verifying the request and forwarding allowed requests to the [Instance Metadata Service](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service) (IMDS) on behalf on the pod.
 * The Managed Identity Controller [*MIC*] watch the Kubernetes API server to dynamically mount identity on the underlying VMs, so that the *IMDS* can authenticate with this identity against Azure Active Directory. 
 [More information](https://azure.github.io/aad-pod-identity/docs/).
 
-Pod identity enables identity to be mounted and unmounted at pod level, and not at machine level. The identities are still mounted and needed on the physical machines by the MIC as described in the image below. 
+Pod identity enables identities to be assigned and unassigned during the initial authentication request at a pod level granularity. The NMI is playing as a gatekeeper by intercepting the request to the IMDS and -if the pod has the correct identity- issue token requests on behalf of the calling pod to the IMDS. 
 
-The NMI is playing as a gatekeeper by intercepting the request to the IMDS and -if authorized- make access token requests on behalf of tokens to the IMDS. Here a simplified stream: As the NMI act as a gatekeeper, it will check for the pod’s label to ensure that the correct authorization is present, otherwise the NMI will return a 404 to the requesting pod. This is where lies the value of Pod Identity: to ability to assign identity at pod level and assign it at deployment time with labels.
+Here a simplified stream: As the NMI act as a gatekeeper, it will check for the pod’s label to ensure that the correct authorization is present, otherwise the NMI will return a 404 to the requesting pod. This is where lies the value of Pod Identity: to ability to assign identity at pod level and assign it at deployment time with labels.
 
 ## Problem statement
 
-The *NMI* component is key as it is the one doing the gatekeeper to assign the pod to a given identity. It is important to understand NMI intercept the ADAL (Azure Active Directory Auth Library) directed to the *IMDS* endpoint. Therefore, if for some reason the NMI is not here, the running pods will issue requests directly to the IMDS and get mounted identitites. We typically saw situations where the application became available before the MIC at cluster creation and node scale out and scale down.
+The *NMI* component is key as it is the one doing the gatekeeper to assign the pod to a given identity. It is important to understand NMI intercept the MSAL (Microsoft Authentication Library) directed to the *IMDS* endpoint. Therefore, if for some reason the NMI is not here, the running pods will issue requests directly to the IMDS and get mounted identitites. We typically saw situations where the application became available before the MIC at cluster creation and node scale out and scale down.
 
 What would happen in such situation widely depends on:
-* How many identities do you have mounted in your cluster?
-* Are you using the DefaultAzureIdentity (see NOTE) with no objectId argument and letting pod identity match the default identity? 
+* How many user managed identities do you have assigned in your cluster?
+* Do you have a system assigned identity in your cluster?
+* Are you using the *DefaultAzureIdentity* class (see NOTE) with no identity argument and letting pod identity match the default identity? 
+
 ---
-**NOTE**
-
-Azure SDKs provide nice way to easily authenticate against Azure ressources using Managed identity (in C#, python, node, java). It is considered as [best practice](https://devblogs.microsoft.com/azure-sdk/best-practices-for-using-azure-sdk-with-asp-net-core/) to use in your code the *DefaultAzureCredential* class to get authorization for your application as it enables seamless transition between development and production setup. This class tries different authentication mechanism in sequence and one of them is the managed identity. 
+> Azure SDKs provide nice way to easily authenticate against Azure ressources using Managed identity (in C#, python, node, java). It is considered as [best practice](https://devblogs.microsoft.com/azure-sdk/best-practices-for-using-azure-sdk-with-asp-net-core/) to use in your code the *DefaultAzureCredential* class to get authorization for your application as it enables seamless transition between development and production setup. This class tries different authentication mechanism in sequence and one of them is the managed identity.
 ---
 
-In case of NMI non avalaibility, if you have only one user assigned identity mounted on your VMSS the request will arrive directly on the IMDS. As you only have one identity availalble, the IMDS will match the request to the default identity and most likely the solution is just going to continue working without you noticing anything.
+In cases where the NMI is not available, the request will arrive directly on the IMDS **if you have only one user assigned identity mounted on your VMSS**. As there is only one identity available, the IMDS will match the request to the default identity. In this case, even without the NMI the application pod will to continue working without any error. However, the NMI Authorization checks is going to be completely bypassed.
 
-If you have multiple identities within your cluster and you don't specify the exact identity object Id, that is a bit trickier as the IMDS won't which identity to impersonate and you would get a 400 error from the IMDS (mapped to CredentialUnavailableException in C#). As the [documentation states](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http), if there are multiple identities on the cluster `object_id`, `client_id` or `mi_res_id` needs to be specified.
+Things become more dire If you have multiple user assigned identities assigned to your cluster machines and don't specify the exact identity object Id in the identity request (typically when using the defaultAzureCredential without providing arguments). If you have a system assigned identity to your cluster, the request will default to this identity. If you only have user assigned identities, the IMDS won't know which one to impersonate will return a 400 error (mapped to CredentialUnavailableException in C#). As the [documentation states](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http), if there are multiple user assigned identities on the cluster `object_id`, `client_id` or `mi_res_id` needs to be specified in the request.
 
-There are two way to solve this issue:
-* We could specify the *objectId*, or *principalId* of the identity to impersonate in the code. For example passing an environment variable from Kubernetes at deployment time. However, we are here losing most of the benefit from pod identity, which is not to have to pass connection information at each pod level. In our opinion, this would render the deployment more complex and pod identity be superfluous.
-* We could ensure that our application Pods run *only* when the NMI is ready to receive requests. In that scenario, we fully rely on Pod identity to handle access token . In our opinion, this is how Pod identity should be operated and we will suggest different ways to achieve that. 
+There are two way to solve the above problem:
+* We could specify the *objectId* or *principalId* of the identity to explicitely ask for a specific identity in the code. That would require knowing passing this information at application deployment time, for example passing an environment variable from the Kubernetes yaml. However, one of the value of Pod Identity is the decoupling between the application code and the identities id, using instead CRDs to save this information on a cluster. Therefore we are not keen on this solution
+* We could ensure that our application Pods run **only** when the NMI is ready to intercept requests to the IMDS. In that scenario, we fully rely on Pod identity to handle access token and couple our application lifetime to the NMI. Based on what we saw above, we believe this is how Pod identity should be operated. we investigated different solutions and will suggest different ways to achieve that. 
 
 ### Solutions
 
 We investigated a diverse set of possible solution and we will discuss pros and cons here below. 
 
 We followed two different strategies to deal with the issue:
-* Check on the NMI probes to ensure the NMI is alive and listening. A Typical downside of this approach is that it would not prevent issues with pod identity that are not dependant on the NMI but on other components (e.g. a missconfiguration on the identity present in the cluster, azure managed identity being part of a deleted resource group,... ). 
+* **Run application pod only when the NMI is healthy** by ensuring the NMI is alive and listening. A downside of this approach is that it would not prevent issues with pod identity that are not dependant on the NMI but on other components (e.g. a missconfiguration on the identity present in the cluster, Azure managed identity being part of a deleted resource group,... ). 
 * Check the full Azure identity stack by requesting an access token to the IMDS. In order to tackle the downside, we are instead doing a full identity roundtrip check to ensure every component is working appropriately. A downside compared to the previous method this call would be typically be much more costly. 
 
 We also experimented different ways to place these health checks:

@@ -27,17 +27,22 @@ namespace HealthChecks
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F");
+                var request = new HttpRequestMessage(HttpMethod.Get, $"http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/");
                 request.Headers.Add("Metadata","true");
                 var client = _clientFactory.CreateClient();
                 var response = await client.SendAsync(request);
-                string stringResponse = await response.Content.ReadAsStringAsync();
-                dynamic responseObject = JsonConvert.DeserializeObject(stringResponse);
-                string accessToken = responseObject["access_token"];
-                if (!string.IsNullOrEmpty(accessToken))
+                if (response.IsSuccessStatusCode)
                 {
-                    return HealthCheckResult.Healthy("The Pod Identity is able to get token as expected.");
-
+                    var stringResponse = await response.Content.ReadAsStringAsync();
+                    var responseObject = JsonConvert.DeserializeObject<Dictionary<string, object>>(stringResponse);
+                    if (responseObject.TryGetValue("access_token", out var accessToken))
+                    {
+                        if (!string.IsNullOrEmpty(accessToken.ToString()))
+                        {
+                            // One should verify here that object id match the expected identity to be sure.
+                            return HealthCheckResult.Healthy("The Pod Identity is able to get token as expected.");
+                        }
+                    }
                 }
             }
             catch (Exception)

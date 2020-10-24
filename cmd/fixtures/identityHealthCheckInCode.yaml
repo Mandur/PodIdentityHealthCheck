@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - name: myapp-container
-    image: mandrx/customidentityhealthcheck:0.0.7
+    image: mandrx/customidentityhealthcheck:0.0.10
     readinessProbe:
       httpGet:
         path: /healthz
