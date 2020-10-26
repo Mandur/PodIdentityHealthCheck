@@ -74,7 +74,7 @@ func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsDown(t *te
 
 // If the NMI fails or stops, this solution won't find it until token expire, as the NMI got a token from the application.
 func TestGetAccessTokenInHealthProbesWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
-	DetectNMIFailsAndMakePodUnhealthy(t, getAccessTokeninHealthProbesPath, false)
+	DetectNMIFailsAndMakePodUnhealthy(t, getAccessTokeninHealthProbesPath, true)
 }
 
 // As the NMI is available the pod will initially succeed in getting the identity. When the NMI fails the pod will hit the IMDS where his token is cached.
