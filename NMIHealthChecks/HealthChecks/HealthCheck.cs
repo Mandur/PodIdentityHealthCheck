@@ -37,7 +37,10 @@ namespace HealthChecks
 
             if (response.IsSuccessStatusCode)
             {
-                return HealthCheckResult.Healthy("The NMI liveness is reponding.");
+                if (await response.Content.ReadAsStringAsync() == "Active")
+                {
+                    return HealthCheckResult.Healthy("The NMI liveness is reponding.");
+                }
             }
 
             return HealthCheckResult.Unhealthy("The NMI liveness probe did not responded as expected.");

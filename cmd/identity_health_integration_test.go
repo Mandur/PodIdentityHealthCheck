@@ -9,10 +9,13 @@ const (
 	identityHealthCheckInCode             = "./fixtures/identityHealthCheckInCode.yaml"
 )
 
+/// it is advised to run tests in sequence and not at once, due to number of moving pieces they could be flaky.
+
 /// SET TO FALSE IF CLUSTER HAS ONLY 1 USER ASSIGNED IDENTITIES OR A SYSTEM ASSIGNED IDENTITY IS ON THE CLUSTER
 /// SET TO TRUE IF CLUSTER HAS NO SYSTEM ASSIGNED IDENTITY AND >1 USER ASSIGNED IDENTITY
 /// VALUE TRUE IS HIGHLY FLAKY AS IT DEPENDS ON THE IMDS TOKEN CACHE. THIS ILLUSTRATE THE UNRELIABILITY OF THOSE METHODS.
-const isMultiUserAssignedIdentityCluster = false
+// if you set value to true and in order to reduce test flakiness it is recommend to manually add two user-assigned identites (different from the one used by pod identity) to reduce flakiness of these tests.
+const isMultiUserAssignedIdentityCluster = true
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test with full pod identity in init container
@@ -51,7 +54,7 @@ func TestIdentityAzLoginCheckInInitContainerWillNotStopIfNMIFailsAtRuntime(t *te
 // If the NMI is not ready the request will go to the IMDS and it will start normally
 // In case of System assigned identity, it will detect that, but not in case of a single user assigned identity
 func TestAzLoginCheckInInitContainerShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
-	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, azCliIdentityCheckInInitContainerPath, true, false)
+	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, azCliIdentityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
 }
 
 // NMI will refuse to forward the authorization request. It will fail

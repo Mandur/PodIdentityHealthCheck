@@ -101,7 +101,7 @@ func checkPodStartCorrectly(t *testing.T, podPath string, killApplicationPodAfte
 	k8s.KubectlApply(t, options, podPath)
 
 	// Verify the pod starts
-	err := k8s.WaitUntilPodAvailableE(t, options, podName, 6, 10*time.Second)
+	err := k8s.WaitUntilPodAvailableE(t, options, podName, 10, 5*time.Second)
 	assert.Nil(t, err)
 	// wait until pod is available
 	loopCount := 0
@@ -201,11 +201,12 @@ func DetectNMIIsNotReadyAndEnsurePodIsNotReady(t *testing.T, podPath string, isI
 
 	setupPodIdentity(t, options)
 	ensureApplicationPodIsDeleted(t, options, podName, podPath)
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	ensureNMIPodsAreDeleted(t, options)
 	k8s.KubectlApply(t, options, podPath)
+
 	defer k8s.KubectlDelete(t, options, podPath)
 	// If we don't expect success the pod will start normally
 	if !expectSuccess {

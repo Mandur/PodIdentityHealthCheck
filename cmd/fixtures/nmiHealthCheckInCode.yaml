@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - name: myapp-container
-    image: mandrx/customnmihealthcheck:0.0.1
+    image: mandrx/customnmihealthcheck:0.0.2
     env:
     - name: HOST_IP
       valueFrom:
