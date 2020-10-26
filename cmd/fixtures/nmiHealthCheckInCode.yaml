@@ -25,6 +25,6 @@ spec:
       httpGet:
         path: /healthz
         port: 80
-      initialDelaySeconds: 30
+      initialDelaySeconds: 10
       periodSeconds: 5
       failureThreshold: 3

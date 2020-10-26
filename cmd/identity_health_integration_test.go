@@ -9,6 +9,11 @@ const (
 	identityHealthCheckInCode             = "./fixtures/identityHealthCheckInCode.yaml"
 )
 
+/// SET TO FALSE IF CLUSTER HAS ONLY 1 USER ASSIGNED IDENTITIES OR A SYSTEM ASSIGNED IDENTITY IS ON THE CLUSTER
+/// SET TO TRUE IF CLUSTER HAS NO SYSTEM ASSIGNED IDENTITY AND >1 USER ASSIGNED IDENTITY
+/// VALUE TRUE IS HIGHLY FLAKY AS IT DEPENDS ON THE IMDS TOKEN CACHE. THIS ILLUSTRATE THE UNRELIABILITY OF THOSE METHODS.
+const isMultiUserAssignedIdentityCluster = false
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test with full pod identity in init container
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +26,7 @@ func TestGetAccessTokenInInitProbeWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
 // If the NMI is not there the request will go to the IMDS and it will start normally
 // If two identities are present on the cluster, the pod won't start (as the IMDS can't resolve the correct identity). If one identity is there it will.
 func TestGetAccessTokenInInitProbeWillNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
-	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, identityCheckInInitContainerPath, true, true)
+	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, identityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
 }
 
 // With NMI is up a pod without the appropriate Tag won't be mapped with the identity.
@@ -29,9 +34,9 @@ func TestGetAccessTokenInInitProbeWithoutTagsWillBeRejectedWhenNMIIsUp(t *testin
 	PodIsRejectedWhenNoLabelWhenNMIIsUp(t, identityCheckInInitContainerPath, true, true)
 }
 
-// If the NMI is not here to check, the pod won't be able to start if there are 2 identities on the cluster. The health probe will receive a 400.
+// Should Not succeed If the NMI is not here to check, the pod won't be able to start if there are 2 identities on the cluster. The health probe will receive a 400.
 func TestGetAccessTokenInInitProbeWithoutTagsWillBeRejectedWhenNMIIsDown(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, identityCheckInInitContainerPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, identityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +49,7 @@ func TestIdentityAzLoginCheckInInitContainerWillNotStopIfNMIFailsAtRuntime(t *te
 }
 
 // If the NMI is not ready the request will go to the IMDS and it will start normally
+// In case of System assigned identity, it will detect that, but not in case of a single user assigned identity
 func TestAzLoginCheckInInitContainerShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
 	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, azCliIdentityCheckInInitContainerPath, true, false)
 }
@@ -54,8 +60,9 @@ func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsUp(t *test
 }
 
 // If the NMI is not here to check, the pod won't be able to start if there are 2 identities on the cluster. The health probe will receive a 400.
+// If only one id is there the az cli will login as the
 func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsDown(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, azCliIdentityCheckInInitContainerPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, azCliIdentityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,16 +77,16 @@ func TestGetAccessTokenInHealthProbesWillNotStopIfNMIFailsAtRuntime(t *testing.T
 // As the NMI is available the pod will initially succeed in getting the identity. When the NMI fails the pod will hit the IMDS where his token is cached.
 // Therefore this highlight this method is unreliable as the pod will only start
 func TestGetAccessTokenInHealthProbesWillNotBeStoppedIfNMIIsMissingAtStartup(t *testing.T) {
-	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, getAccessTokeninHealthProbesPath, false, false)
+	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, getAccessTokeninHealthProbesPath, false, isMultiUserAssignedIdentityCluster)
 }
 
 // Check will detect that when NMI is up a pod without the appropriate Tag won't be mapped with the identity.
 func TestGetAccessTokenInHealthProbesWillBeRejectedWhenNMIIsUp(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsUp(t, getAccessTokeninHealthProbesPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsUp(t, getAccessTokeninHealthProbesPath, false, true)
 }
 
 func TestGetAccessTokenInHealthProbesWillBeRejectedWhenNMIIsDown(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, getAccessTokeninHealthProbesPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, getAccessTokeninHealthProbesPath, false, isMultiUserAssignedIdentityCluster)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -93,14 +100,14 @@ func TestGetTokenInCodeWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
 
 // If the NMI is missing, the az cli will have cached the credentials therefore there is no way to stop the already pod.
 func TestGetTokenInCodeWillBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
-	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, identityHealthCheckInCode, false, false)
+	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, identityHealthCheckInCode, false, isMultiUserAssignedIdentityCluster)
 }
 
 // Check will detect that when NMI is up a pod without the appropriate Tag won't be mapped with the identity.
 func TestGetTokenInCodeWithoutTagsWillBeRejectedWhenNMIIsUp(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsUp(t, getAccessTokeninHealthProbesPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsUp(t, getAccessTokeninHealthProbesPath, false, true)
 }
 
 func TestGetTokenInCodeWithoutTagsWillBeRejectedWhenNMIIsDown(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, getAccessTokeninHealthProbesPath, true, true)
+	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, getAccessTokeninHealthProbesPath, false, isMultiUserAssignedIdentityCluster)
 }

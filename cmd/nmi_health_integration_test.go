@@ -9,16 +9,16 @@ const (
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Test with NMI probes health check in container init
+// Test with NMI probes health check in init container
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // If the NMI fails or stops, there is no way an init container could stop it.
-func TestNmiHealthCheckInInitPodShouldStopIfNMIFails(t *testing.T) {
+func TestNmiHealthCheckInInitWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
 	DetectNMIFailsAndMakePodUnhealthy(t, nmiHealthCheckInInitContainerPath, false)
 }
 
-// If the NMI is missing, the probes should prevent the pod to start.
-func TestNmiHealthCheckInInitPodShouldNeverBeReadyIfNMIIsMissing(t *testing.T) {
+// If the NMI is missing, the init container will prevent the pod to start.
+func TestNmiHealthCheckInInitPodShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
 	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, nmiHealthCheckInInitContainerPath, true, true)
 }
 
@@ -26,13 +26,13 @@ func TestNmiHealthCheckInInitPodShouldNeverBeReadyIfNMIIsMissing(t *testing.T) {
 // Test with NMI Health check as part of application probes
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// If the NMI fails or stops, the pods probe should be not ready and be restarted by health prove
-func TestNMIHealthCheckPodShouldBecomeNotReadyAndRestartIfNMIFails(t *testing.T) {
+// If the NMI fails or stops, the pods probe should become not ready and be restarted by health probe
+func TestNMIHealthCheckPodWillBecomeNotReadyAndRestartIfNMIFailsAtRuntime(t *testing.T) {
 	DetectNMIFailsAndMakePodUnhealthy(t, nmiHealthCheckInProbesPath, true)
 }
 
-// If the NMI is not ready, the probes should prevent the pod to start.
-func TestNMIHealthCheckPodShouldNeverBeReadyIfNMIIsMissing(t *testing.T) {
+// If the NMI is not ready, the probes should prevent the pod from being ready and restart it.
+func TestNMIHealthCheckPodShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
 	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, nmiHealthCheckInProbesPath, false, true)
 }
 
@@ -41,11 +41,11 @@ func TestNMIHealthCheckPodShouldNeverBeReadyIfNMIIsMissing(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // If the NMI fails or stops, the pods probe should prevent the pod from receiving traffic and restart it.
-func TestNMIHealthCheckCustomPodShouldStopIfNMIFails(t *testing.T) {
+func TestNMIHealthCheckCustomPodShouldStopIfNMIFailsAtRuntime(t *testing.T) {
 	DetectNMIFailsAndMakePodUnhealthy(t, nmiHealthCheckInCodePath, true)
 }
 
-// If the NMI is missing, the probes should prevent the pod to be ready
-func TestNMIHealthCheckCustomPodShouldNeverBeReadyIfNMIIsMissing(t *testing.T) {
+// If the NMI is missing, the probes should prevent the pod to be ready and restart it
+func TestNMIHealthCheckCustomPodShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
 	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, nmiHealthCheckInCodePath, false, true)
 }

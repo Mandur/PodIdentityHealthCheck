@@ -32,6 +32,6 @@ spec:
         - sh
         - -c
         - wget -qO- $HOST_IP:8085/healthz
-      initialDelaySeconds: 30
+      initialDelaySeconds: 5
       periodSeconds: 5
       failureThreshold: 3

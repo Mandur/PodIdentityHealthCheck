@@ -108,7 +108,7 @@ func checkPodStartCorrectly(t *testing.T, podPath string, killApplicationPodAfte
 	for !checkIfPodReady(t, options, podName) {
 		time.Sleep(5 * time.Second)
 		loopCount++
-		if loopCount > 8 {
+		if loopCount > 20 {
 			assert.FailNow(t, "timeout waiting for the pod to become available")
 		}
 	}
@@ -129,6 +129,7 @@ func detectIdentityStackIsNotHealthyAsNoIdentityMountedOnIMDS(t *testing.T, podP
 	checkPodStartCorrectly(t, podPath, false)
 	defer k8s.KubectlDelete(t, options, podPath)
 	if decommisionNMI {
+		time.Sleep(10)
 		options := k8s.NewKubectlOptions("", "", "default")
 		// Delete the NMI to simulate a shutdown
 		k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
@@ -180,6 +181,7 @@ func DetectNMIFailsAndMakePodUnhealthy(t *testing.T, podPath string, expectSucce
 	options := k8s.NewKubectlOptions("", "", "default")
 	defer k8s.KubectlDelete(t, options, podPath)
 	// Delete the NMI to simulate a shutdown
+	time.Sleep(10)
 	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	ensureNMIPodsAreDeleted(t, options)
 
@@ -199,6 +201,7 @@ func DetectNMIIsNotReadyAndEnsurePodIsNotReady(t *testing.T, podPath string, isI
 
 	setupPodIdentity(t, options)
 	ensureApplicationPodIsDeleted(t, options, podName, podPath)
+	time.Sleep(10 * time.Second)
 
 	k8s.RunKubectlAndGetOutputE(t, options, "delete", "daemonset", "nmi")
 	ensureNMIPodsAreDeleted(t, options)
@@ -206,8 +209,13 @@ func DetectNMIIsNotReadyAndEnsurePodIsNotReady(t *testing.T, podPath string, isI
 	defer k8s.KubectlDelete(t, options, podPath)
 	// If we don't expect success the pod will start normally
 	if !expectSuccess {
+		noSuccessCount := 0
 		for !checkIfPodReady(t, options, podName) {
 			time.Sleep(5 * time.Second)
+			if noSuccessCount > 5 {
+				assert.FailNow(t, "timeout waiting for pod to start.")
+			}
+			noSuccessCount++
 		}
 		// in this case we expect the pod to keep running
 		assertPodKeepRunningAndDontRestart(t, options, podName)
