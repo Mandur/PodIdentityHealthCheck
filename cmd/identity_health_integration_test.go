@@ -15,7 +15,10 @@ const (
 /// SET TO TRUE IF CLUSTER HAS NO SYSTEM ASSIGNED IDENTITY AND >1 USER ASSIGNED IDENTITY
 /// VALUE TRUE IS HIGHLY FLAKY AS IT DEPENDS ON THE IMDS TOKEN CACHE. THIS ILLUSTRATE THE UNRELIABILITY OF THOSE METHODS.
 // if you set value to true and in order to reduce test flakiness it is recommend to manually add two user-assigned identites (different from the one used by pod identity) to reduce flakiness of these tests.
-const isMultiUserAssignedIdentityCluster = true
+const isMultiUserAssignedIdentityCluster = false
+
+// SET TO TRUE IF YOU HAVE A SYSTEM ASSIGNED IDENTITY FALSE OTHERWISE.
+const isSystemAssignedIdentity = false
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test with full pod identity in init container
@@ -46,7 +49,7 @@ func TestGetAccessTokenInInitProbeWithoutTagsWillBeRejectedWhenNMIIsDown(t *test
 // Test with az login as init container
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// If the NMI fail, an init container can't pick this up.
+// If the NMI fail at runtime, an init container can't pick this up.
 func TestIdentityAzLoginCheckInInitContainerWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
 	DetectNMIFailsAndMakePodUnhealthy(t, azCliIdentityCheckInInitContainerPath, false)
 }
@@ -54,7 +57,7 @@ func TestIdentityAzLoginCheckInInitContainerWillNotStopIfNMIFailsAtRuntime(t *te
 // If the NMI is not ready the request will go to the IMDS and it will start normally
 // In case of System assigned identity, it will detect that, but not in case of a single user assigned identity
 func TestAzLoginCheckInInitContainerShouldNeverBeReadyIfNMIIsMissingAtStartup(t *testing.T) {
-	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, azCliIdentityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
+	DetectNMIIsNotReadyAndEnsurePodIsNotReady(t, azCliIdentityCheckInInitContainerPath, true, isSystemAssignedIdentity || isMultiUserAssignedIdentityCluster)
 }
 
 // NMI will refuse to forward the authorization request. It will fail
@@ -63,9 +66,10 @@ func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsUp(t *test
 }
 
 // If the NMI is not here to check, the pod won't be able to start if there are 2 identities on the cluster. The health probe will receive a 400.
-// If only one id is there the az cli will login as the
+// If only one id is there the az cli will login.
+// a system  a
 func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsDown(t *testing.T) {
-	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, azCliIdentityCheckInInitContainerPath, true, isMultiUserAssignedIdentityCluster)
+	PodIsRejectedWhenNoLabelWhenNMIIsDown(t, azCliIdentityCheckInInitContainerPath, true, isSystemAssignedIdentity || isMultiUserAssignedIdentityCluster)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +78,7 @@ func TestAzLoginCheckInInitContainerWithoutTagsWillBeRejectedWhenNMIIsDown(t *te
 
 // If the NMI fails or stops, this solution won't find it until token expire, as the NMI got a token from the application.
 func TestGetAccessTokenInHealthProbesWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
-	DetectNMIFailsAndMakePodUnhealthy(t, getAccessTokeninHealthProbesPath, true)
+	DetectNMIFailsAndMakePodUnhealthy(t, getAccessTokeninHealthProbesPath, isMultiUserAssignedIdentityCluster)
 }
 
 // As the NMI is available the pod will initially succeed in getting the identity. When the NMI fails the pod will hit the IMDS where his token is cached.
@@ -98,7 +102,7 @@ func TestGetAccessTokenInHealthProbesWillBeRejectedWhenNMIIsDown(t *testing.T) {
 
 // If the NMI fails or stops, there is no way an init container could stop it.
 func TestGetTokenInCodeWillNotStopIfNMIFailsAtRuntime(t *testing.T) {
-	DetectNMIFailsAndMakePodUnhealthy(t, identityHealthCheckInCode, false)
+	DetectNMIFailsAndMakePodUnhealthy(t, identityHealthCheckInCode, isMultiUserAssignedIdentityCluster)
 }
 
 // If the NMI is missing, the az cli will have cached the credentials therefore there is no way to stop the already pod.

@@ -1,4 +1,4 @@
-# Pod Identity best practice : Checking NMI Health
+# Pod Identity best practice: Checking NMI Health
 
 [TL/DR](#conclusion)
 
@@ -59,7 +59,7 @@ We followed two different potential ways to deal with the issue:
 We also experimented different options on where to place these health checks:
 * In an **init container**, checking during pod startup that the identity is working. An init container would ensure our application pod only starts if the NMI or the full identity stack is ready to receive the request. This solution generates less requests as the following ones, as they occur at startup only. An obvious downside is that we do not get any runtime health assessment detection. Therefore, it would not prevent error caused by the NMI being decommissioned before the application pod during cluster scale down events.
 * In application's pod **health probes** continuously checking for the identity stack health and stop traffic to the application in case of problem. Unlike the init container, [health probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) can offer runtime health verification at the cost of having those request fired as part of the pod runtime. Readiness probes decides if an application pod can receive HTTP traffic, whereas Liveness probes assess if a pod is in a bad state and should be restarted. A combination of both is typically recommended.
-* In the **application code**. Using some language primitives, we can report health of a pod as an endpoint checked by the pod's health probe as the previous method. It enables much more health check than direct health probe programming. **This is the preferred method for any productive application** that would typically depend on >1 multiple external components.
+* In the **application code**. Using some language primitives, we can report health of a pod as an endpoint checked by the pod's health probe as the previous method. It enables much more health check than direct health probe programming. **This is the preferred method for any productive application** that would typically depend on >1 multiple external component.
 
 ## Assessing NMI health
 
@@ -114,7 +114,7 @@ spec:
         command:
         - sh
         - -c
-        - wget -qO- $HOST_IP:8085/healthz
+        - if [ "$(curl $HOST_IP:8085/healthz)" == "Active" ]; then exit 0; else exit 1; fi
       initialDelaySeconds: 0
       periodSeconds: 5
     livenessProbe:
@@ -122,7 +122,7 @@ spec:
         command:
         - sh
         - -c
-        - wget -qO- $HOST_IP:8085/healthz
+        - if [ "$(curl $HOST_IP:8085/healthz)" == "Active" ]; then exit 0; else exit 1; fi
       initialDelaySeconds: 30
       periodSeconds: 5
       failureThreshold: 5
@@ -210,7 +210,7 @@ spec:
     image: <your application image>
 ```
 
-It works very well and test a full roundtrip to azure -not just token allocation-. This is much more costly than just getting the token as there are requests made to the Azure cloud. Additionally the docker image used for the init container is `mcr.microsoft.com/azure-cli` which is 712 mb. This is a very heavy container compared with the one we use for wget (busybox ~1.5 mb) or curl (curlimages/curl ~15 mb). One should consider that higher microservice footprint might impact pod startup time and general agility on the cluster and consider this method carefully.
+It works very well and test a full roundtrip to azure -not just token allocation-. This is much more costly than just getting the token as there are requests made to the Azure cloud. Additionally, the docker image used for the init container is `mcr.microsoft.com/azure-cli` which is 712 mb. This is a very heavy container compared with the one we use for wget (busybox ~1.5 mb) or curl (curlimages/curl ~15 mb). One should consider that higher microservice footprint might impact pod startup time and general agility on the cluster and consider this method carefully.
 
 This solution is tested in our automated tests, please find the associated [yaml](cmd/fixtures/identityCheckInInitContainer.yaml) and the [test code](cmd/identity_health_integration_test.go)
 
@@ -340,15 +340,16 @@ We check for the following:
 For the identity checks we also add the following tests. As part of these tests we deploy two containers on the cluster, one with the identity labels (to make sure the identity is assigned on the VMSS, one without labels that is used for the tests)
 * [Can pod without label access identity when NMI is up?]
 * [Can pod without label access identity when NMI is down?]
-As described in the [introduction](#introduction), these tests are complex and rely on a cluster state. The setting `isMultiUserAssignedIdentityCluster` should be set to false if there is either a system-assigned managed identity or a single user-assigned managed identity (default). You can set it to true to change the test behavior and illustrate difference of the probes' behaviors. Typically, you will see the test [Can pod without label access identity when NMI is down?] fail as the IMDS will be able to resolve token to the default identity. In order to reduce test flakiness, it is recommended to manually add two user-assigned identites (different from the one used by pod identity). 
+As described in the [introduction](#introduction), these tests are complex and rely on a cluster state. The setting `isMultiUserAssignedIdentityCluster` should be set to false if there is either a system-assigned managed identity or a single user-assigned managed identity (default). You can set it to true to change the test behavior and illustrate difference of the probes' behaviors. Typically, you will see the test [Can pod without label access identity when NMI is down?] fail as the IMDS will be able to resolve token to the default identity. To reduce test flakiness, it is recommended to manually add two user-assigned identites (different from the one used by pod identity). 
 
 ## Conclusion
+To avoid issuing requests directly to IMDS if the NMI is in unready state, we detailed multiple solutions:
 
-We explored above different strategies:
-* Tie the application lifetime to pod identity's NMI [Advised solution]
-* Use az login as init probe as suggested in best practices [works, but has high footprint]
-* Get Access token [work very unreliably due to different factors **not recommended**]
+* Include the desired identity principalId/ObjectId to the calling code. However, this would reduce the usefulness of Pod Identity to the gate keeper part and the identity assigned on the node. In such cases, we do not see the advantages of using pod identity versus assigning the identities on the underlying nodes at infrastructure provisioning time and providing the identities ID at application deployment time.
+* Tie the application lifetime to [pod identity's NMI](#Assessing-NMI-health) [Advised solution]. We recommend using nmi health check [in the application health check](#Check-NMI-health-with-a-Health-Probe) if your application doesn't depend on external components or [in the application code](#Check-NMI-Health-from-code) if the application has multiple health checks to carry.
+* Get [Access token](#Assess-health-of-the-full-identity-stack-by-an-application-health-check). We saw that such health check depends on the identity assigned to your cluster's VMSS **AND** on the IMDS token cache state. Therefore, we cannot use this technique to reliably assess health of the authentication stack without decoding the token and using it to authenticate against Azure. This would reduce pod identity benefit as we will again need to pass identities' principalId/objectId and such logic could prove quite costly to at runtime.
+* Use [az login as init probe](#Assess-health-of-the-full-identity-stack-by-an-init-container-and-az-cli) as suggested in best practices. This solution proved to work against cases where a system-assigned identity is returned from IMDS, and against the case where multiple identities are assigned on the machines. However, the solution has a **high footprint** and only work as init container, not protecting against any runtime NMI health unavailabilities typically occuring at cluster downscale time.
 
-As we saw in the [Full Identity Stack](#Assessing-health-of-the-full-identity-stack), a lot of uncertainties happen when pod identity is not available. In that case, it can even happen that your application pod gets a different identity that the one assigned in pod identity, resulting in authentication exceptions. Therefore, when using pod identity, we think the best solution is to always check for the NMI health during your application pod lifetime and be very aggressive on the readiness probe to remove HTTP traffic should the NMI become unresponsive.
+As we saw in the [Full Identity Stack](#Assessing-health-of-the-full-identity-stack), what happen when pod identity is not available is very dependant of on how many identites you have assigned on the underlying machines. In that case, it can even happen that your application pod gets a different identity that the one assigned in pod identity, resulting in authentication exceptions. Therefore, when using pod identity, we think the best solution is to always check for the NMI health during your application pod lifetime and be very aggressive on the readiness probe to remove HTTP traffic should the NMI become unresponsive.
 
 In case of productive solution, we recommend having the NMI health check hosted within your code as you should have other health check. In case of very simple solution, a health probe approach is good enough. The init container is not recommended as it does not prevent problems in case of cluster downscale.
